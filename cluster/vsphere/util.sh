@@ -20,10 +20,26 @@
 # config-default.sh.
 source $(dirname ${BASH_SOURCE})/${KUBE_CONFIG_FILE-"config-default.sh"}
 
+function get-vm-ipath {
+  vm_name=$1
+  if [ "$USE_EXTERNAL_INSTANCES" == "true" ]; then
+    vm_group=$(echo $vm_name | awk -F '-' '{print $2}')
+    echo $INSTANCE_RESOURCE_POOL/$INSTANCE_PREFIX/$vm_group/$vm_name
+  else
+    echo $GOVC_DATACENTER/vm/$vm_name
+  fi
+}
+
+function get-vm-ip {
+  vm_name=$1
+  vm_ipath=$(get-vm-ipath $vm_name)
+  govc vm.ip -vm.ipath $vm_ipath
+}
+
 function detect-master {
   KUBE_MASTER=${MASTER_NAME}
   if [ -z "$KUBE_MASTER_IP" ]; then
-    KUBE_MASTER_IP=$(govc vm.ip ${MASTER_NAME})
+    KUBE_MASTER_IP=$(get-vm-ip $KUBE_MASTER)
   fi
   if [ -z "$KUBE_MASTER_IP" ]; then
     echo "Could not detect Kubernetes master node.  Make sure you've launched a cluster with 'kube-up.sh'"
@@ -35,7 +51,7 @@ function detect-master {
 function detect-minions {
   KUBE_MINION_IP_ADDRESSES=()
   for (( i=0; i<${#MINION_NAMES[@]}; i++)); do
-    local minion_ip=$(govc vm.ip ${MINION_NAMES[$i]})
+    local minion_ip=$(get-vm-ip ${MINION_NAMES[$i]})
     echo "Found ${MINION_NAMES[$i]} at ${minion_ip}"
     KUBE_MINION_IP_ADDRESSES+=("${minion_ip}")
   done
@@ -60,7 +76,7 @@ function verify-prereqs {
 function kube-ssh {
   local host=$1
   shift
-  ssh ${SSH_OPTS} kube@${host} "$*" 2> /dev/null
+  ssh ${SSH_OPTS} $KUBE_USER@${host} "$*"
 }
 
 # Instantiate a generic kubernetes virtual machine (master or minion)
@@ -70,28 +86,31 @@ function kube-up-vm {
   local vm_cpu=$3
   local vm_ip=
 
-  govc vm.create \
-    -debug \
-    -m ${vm_memory} \
-    -c ${vm_cpu} \
-    -disk ${DISK} \
-    -g ${GUEST_ID} \
-    -link=true \
-    ${vm_name}
+  if [ "$USE_EXTERNAL_INSTANCES" != "true" ]; then
+    govc vm.create \
+      -debug \
+      -m ${vm_memory} \
+      -c ${vm_cpu} \
+      -disk ${DISK} \
+      -g ${GUEST_ID} \
+      -link=true \
+      ${vm_name}
+  fi
 
   # Retrieve IP first, to confirm the guest operations agent is running.
-  vm_ip=$(govc vm.ip ${vm_name})
+  vm_ip=$(get-vm-ip ${vm_name})
+  vm_ipath=$(get-vm-ipath ${vm_name})
 
   govc guest.mkdir \
-    -vm ${vm_name} \
+    -vm.ipath ${vm_ipath} \
     -p \
-    /home/kube/.ssh
+    $KUBE_USER_HOME/.ssh
 
   govc guest.upload \
-    -vm ${vm_name} \
+    -vm.ipath ${vm_ipath} \
     -f \
     ${PUBLIC_KEY_FILE} \
-    /home/kube/.ssh/authorized_keys
+    $KUBE_USER_HOME/.ssh/authorized_keys
 }
 
 # Instantiate a kubernetes cluster
@@ -128,14 +147,14 @@ function kube-up {
     (
       kube-up-vm ${MINION_NAMES[$i]} ${MINION_MEMORY_MB-1024} ${MINION_CPU-1}
 
-      MINION_IP=$(govc vm.ip ${MINION_NAMES[$i]})
+      MINION_IP=$(get-vm-ip ${MINION_NAMES[$i]})
 
       govc guest.upload \
-        -vm ${MINION_NAMES[$i]} \
+        -vm.ipath $(get-vm-ipath ${MINION_NAMES[$i]}) \
         -perm 0700 \
         -f \
         ${KUBE_TEMP}/minion-start-${i}.sh \
-        /home/kube/minion-start.sh
+        $KUBE_USER_HOME/minion-start.sh
 
       # Kickstart start script
       kube-ssh ${MINION_IP} "nohup sudo ~/minion-start.sh < /dev/null 1> minion-start.out 2> minion-start.err &"
@@ -168,18 +187,19 @@ function kube-up {
     grep -v "^#" $(dirname $0)/vsphere/templates/salt-master.sh
   ) > ${KUBE_TEMP}/master-start.sh
 
+  vm_ipath=$(get-vm-ipath ${MASTER_NAME})
   govc guest.upload \
-    -vm ${MASTER_NAME} \
+    -vm.ipath ${vm_ipath} \
     -perm 0700 \
     -f \
     ${KUBE_TEMP}/master-start.sh \
-    /home/kube/master-start.sh
+    $KUBE_USER_HOME/master-start.sh
 
   govc guest.upload \
-    -vm ${MASTER_NAME} \
+    -vm.ipath ${vm_ipath} \
     -f \
     ./_output/release/master-release.tgz \
-    /home/kube/master-release.tgz
+    $KUBE_USER_HOME/master-release.tgz
 
   # Kickstart start script
   kube-ssh ${KUBE_MASTER_IP} "nohup sudo ~/master-start.sh < /dev/null 1> master-start.out 2> master-start.err &"
@@ -245,11 +265,12 @@ function kube-down {
 function kube-push {
   detect-master
 
+  vm_ipath=$(get-vm-ipath ${MASTER_NAME})
   govc guest.upload \
-    -vm ${MASTER_NAME} \
+    -vm.ipath ${vm_ipath} \
     -f \
     ./_output/release/master-release.tgz \
-    /home/kube/master-release.tgz
+    $KUBE_USER_HOME/master-release.tgz
 
   (
     grep -v "^#" $(dirname $0)/vsphere/templates/install-release.sh

@@ -34,13 +34,24 @@ PUBLIC_KEY_FILE=${PUBLIC_KEY_FILE-$(public-key)}
 SSH_OPTS="-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null"
 
 # These need to be set
+
+## vCenter settings
 #export GOVC_URL=
 #export GOVC_DATACENTER=
 #export GOVC_DATASTORE=
 #export GOVC_RESOURCE_POOL=
 #export GOVC_NETWORK=
-#export GOVC_GUEST_LOGIN='kube:kube'
-
 # Set GOVC_INSECURE if the host in GOVC_URL is using a certificate that cannot
 # be verified (i.e. a self-signed certificate), but IS trusted.
 #export GOVC_INSECURE=1
+
+## VM instances settings
+#export GOVC_GUEST_LOGIN='kube:kube'
+#export KUBE_USER=kube
+#export KUBE_USER_HOME=/home/$KUBE_USER
+
+## Set to true if using external tools instead of Kubernetes to create VMs in vCenter
+#export USE_EXTERNAL_INSTANCES=true
+#export INSTANCE_RESOURCE_POOL=${GOVC_DATACENTER}/vm/the-resource-pool
+#export KUBE_CLUSTER_NAME=
+
