@@ -51,7 +51,10 @@ echo $MASTER_HTPASSWD > /srv/salt/nginx/htpasswd
 #
 # -M installs the master
 if [ ! -x /etc/init.d/salt-master ]; then
-  wget -q -O - https://bootstrap.saltstack.com | sh -s -- -M -X
+#  wget -q -O - https://bootstrap.saltstack.com | sh -s -- -M -X
+   wget -q -O bootstrap-salt.sh https://bootstrap.saltstack.com
+   sed -i 's|__DEFAULT_SLEEP=3|__DEFAULT_SLEEP=10|' bootstrap-salt.sh
+   sh bootstrap-salt.sh -M -X
 else
   /etc/init.d/salt-master restart
   /etc/init.d/salt-minion restart
