@@ -228,8 +228,8 @@ function kube-up {
 
   # Basic sanity checking
   for (( i=0; i<${#MINION_NAMES[@]}; i++)); do
-      # Make sure docker is installed
-      kube-ssh ${KUBE_MINION_IP_ADDRESSES[$i]} which docker > /dev/null
+      # Make sure docker is installed and started
+      kube-ssh ${KUBE_MINION_IP_ADDRESSES[$i]} nohup sudo service docker start
       if [ "$?" != "0" ]; then
           echo "Docker failed to install on ${MINION_NAMES[$i]}. Your cluster is unlikely to work correctly."
           echo "Please run ./cluster/kube-down.sh and re-create the cluster. (sorry!)"
