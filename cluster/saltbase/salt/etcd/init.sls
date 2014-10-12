@@ -1,7 +1,7 @@
 etcd-install:
   git.latest:
     - target: /var/src/etcd
-    - name: git://github.com/coreos/etcd
+    - name: https://github.com/coreos/etcd
   cmd.wait:
     - cwd: /var/src/etcd
     - name: |
