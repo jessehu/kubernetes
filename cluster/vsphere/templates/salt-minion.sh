@@ -50,7 +50,7 @@ EOF
 # install.  See https://github.com/saltstack/salt-bootstrap/issues/270
 if [ ! -x /etc/init.d/salt-minion ]; then
 #  wget -q -O - https://bootstrap.saltstack.com | sh -s -- -X
-   wget -q -O bootstrap-salt.sh https://bootstrap.saltstack.com
+   wget -q -O bootstrap-salt.sh https://raw.githubusercontent.com/saltstack/salt-bootstrap/stable/bootstrap-salt.sh
    sed -i 's|__DEFAULT_SLEEP=3|__DEFAULT_SLEEP=10|' bootstrap-salt.sh
    sh bootstrap-salt.sh -X
 else
